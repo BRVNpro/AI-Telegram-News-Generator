@@ -1,3 +1,12 @@
+"""
+Модели базы данных для приложения: NewsItem, Post, Source, Keyword.
+
+Каждый класс соответствует таблице и содержит описание основных полей:
+- NewsItem — новости/записи, сохраняемые из источников;
+- Post — запись для публикации, связанная с NewsItem;
+- Source — источник (RSS/Telegram) с настройкой включения;
+- Keyword — ключевые слова для фильтрации новостей.
+"""
 import uuid
 from datetime import datetime
 
@@ -8,6 +17,22 @@ from app.db import Base
 
 
 class NewsItem(Base):
+    """
+    Таблица `news_items`.
+
+    Поля:
+    - id: PK (uuid строка);
+    - title: заголовок новости;
+    - url: ссылка (опционально);
+    - summary: краткое содержание/аннотация;
+    - source: источник записи (строка);
+    - published_at: время публикации с таймзоной;
+    - raw_text: полный необработанный текст (опционально);
+    - content_type: тип контента (по умолчанию `'news'`);
+    - content_hash: SHA‑256 хэш для дедупликации;
+    - created_at: время добавления записи.
+    - posts: отношение к записям `Post`.
+    """
     __tablename__ = "news_items"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -33,6 +58,19 @@ class NewsItem(Base):
 
 
 class Post(Base):
+    """
+    Таблица `posts` — записи для публикации.
+
+    Поля:
+    - id: PK (uuid строка);
+    - news_id: FK на `news_items.id`;
+    - generated_text: сгенерированный текст поста (опционально);
+    - status: статус публикации (`'new'`, `'generated'`, `'published'`, `'failed'` и т.п.);
+    - published_at: время публикации (опционально);
+    - error: текст ошибки при неудаче (опционально);
+    - created_at: время создания записи.
+    - news_item: отношение к родительскому `NewsItem`.
+    """
     __tablename__ = "posts"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -50,6 +88,16 @@ class Post(Base):
 
 
 class Source(Base):
+    """
+    Таблица `sources` — описывает доступные источники контента.
+
+    Поля:
+    - id: PK (uuid строка);
+    - type: тип источника (например, `'rss'` или `'tg'`);
+    - name: читаемое имя источника;
+    - url: адрес источника;
+    - enabled: флаг включения/отключения источника.
+    """
     __tablename__ = "sources"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -60,6 +108,13 @@ class Source(Base):
 
 
 class Keyword(Base):
+    """
+    Таблица `keywords` — ключевые слова для фильтрации новостей.
+
+    Поля:
+    - id: PK (uuid строка);
+    - word: само ключевое слово (уникально).
+    """
     __tablename__ = "keywords"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))

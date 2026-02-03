@@ -130,3 +130,8 @@ Desktop.ini
 
 # Misc
 *.orig
+
+
+# Celery beat runtime files
+celerybeat-schedule
+celerybeat-schedule*

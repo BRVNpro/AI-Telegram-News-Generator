@@ -1,3 +1,17 @@
+# python
+"""
+Модуль `app.tasks` — Celery‑таски для полного пайплайна обработки новостей.
+
+Этот модуль выполняет:
+- парсинг источников (RSS и Telegram) и сохранение новостей в БД;
+- фильтрацию новостей по ключевым словам и создание записей для публикации;
+- генерацию текста постов с помощью Ollama и сохранение результатов;
+- публикацию сгенерированных постов в Telegram;
+- оркестрацию шагов в виде цепочки задач.
+
+Каждая функция, помеченная `@shared_task`, возвращает данные, указанные в её докстринге
+(например, количество добавленных записей или список идентификаторов).
+"""
 import logging
 from datetime import datetime, timezone
 
@@ -29,6 +43,18 @@ POST_DELAY = 60
 
 
 def run_async(coro):
+    """
+    Выполнить asyncio‑корутину в подходящем цикле событий и вернуть результат.
+
+    Функция безопасно запускает корутину как в чужом, так и в собственном
+    цикле событий: если текущий цикл уже запущен, создаётся временный цикл.
+
+    Args:
+        coro: awaitable — корутина или awaitable объект.
+
+    Returns:
+        Любое: результат выполнения корутины.
+    """
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
@@ -46,6 +72,18 @@ def run_async(coro):
 
 @shared_task
 def parse_sources_task() -> int:
+    """
+    Спарсить RSS и Telegram источник и сохранить новые записи в таблицу `NewsItem`.
+
+    Логика:
+    - парсит RSS через `parse_rss` и Telegram канал через `parse_telegram_channel`;
+    - формирует `content_hash` через `make_hash` для дедупликации;
+    - добавляет новые `NewsItem` в БД, игнорируя уже существующие записи
+      (через обработку `IntegrityError`).
+
+    Returns:
+        int: количество добавленных записей.
+    """
     db = SessionLocal()
     added = 0
     try:
@@ -100,6 +138,17 @@ def parse_sources_task() -> int:
 
 @shared_task
 def filter_news_task() -> list[str]:
+    """
+    Отфильтровать недавно добавленные `NewsItem` и создать записи `Post` для публикации.
+
+    Логика:
+    - загружает ключевые слова из таблицы `Keyword`;
+    - выбирает последние 50 новостей и применяет `matches_keywords` к тексту;
+    - создаёт запись `Post` со статусом `"new"` для новостей, которых ещё нет в `Post`.
+
+    Returns:
+        list[str]: список идентификаторов созданных записей `Post`.
+    """
     db = SessionLocal()
     try:
         keywords = [k.word for k in db.scalars(select(Keyword)).all()]
@@ -131,6 +180,20 @@ def filter_news_task() -> list[str]:
 
 @shared_task
 def generate_posts_task(post_ids: list[str]) -> list[str]:
+    """
+    Сгенерировать текст для списка постов с помощью Ollama и сохранить результаты.
+
+    Логика:
+    - для каждого `Post` со статусом `"new"` получает связанный `NewsItem`;
+    - вызывает `generate_post_text` (асинхронно) и сохраняет `generated_text`;
+    - при успехе устанавливает статус `"generated"`, при ошибке — `"failed"` с текстом ошибки.
+
+    Args:
+        post_ids (list[str]): список идентификаторов `Post` для генерации.
+
+    Returns:
+        list[str]: список идентификаторов постов, успешно обновлённых (`generated`).
+    """
     if not post_ids:
         return []
 
@@ -176,6 +239,21 @@ def generate_posts_task(post_ids: list[str]) -> list[str]:
 
 @shared_task
 def publish_posts_task(post_ids: list[str]) -> int:
+    """
+    Опубликовать сгенерированные посты в целевой Telegram‑канал.
+
+    Логика:
+    - открывает сессию Telethon и публикует не более `MAX_POSTS_PER_RUN` постов;
+    - после каждой успешной публикации делает `await asyncio.sleep(POST_DELAY)`;
+    - при `FloodWaitError` делает паузу на `e.seconds + 5` и прерывает цикл;
+    - обновляет статус поста (`published` / `failed`) и проставляет `published_at`.
+
+    Args:
+        post_ids (list[str]): список идентификаторов `Post` для публикации.
+
+    Returns:
+        int: количество успешно опубликованных постов.
+    """
     if not post_ids:
         return 0
 
@@ -228,6 +306,13 @@ def publish_posts_task(post_ids: list[str]) -> int:
 
 @shared_task
 def run_pipeline_task() -> dict:
+    """
+    Запустить весь пайплайн в виде цепочки Celery задач:
+    parse_sources_task -> filter_news_task -> generate_posts_task -> publish_posts_task.
+
+    Returns:
+        dict: словарь с ключом `task_id` — идентификатором запущенного рабочего процесса.
+    """
     workflow = chain(
         parse_sources_task.si(),
         filter_news_task.si(),

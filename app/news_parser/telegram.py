@@ -10,6 +10,30 @@ async def parse_telegram_channel(
     source_name: str,
     content_type: str = "news",
 ) -> list[dict]:
+    """
+    Парсит сообщения из Telegram-канала и возвращает список новостей.
+
+    Args:
+        client: Авторизованный клиент Telegram для доступа к каналу.
+        channel: Имя или ID Telegram-канала для парсинга.
+        source_name: Название источника для идентификации новостей.
+        content_type: Тип контента (по умолчанию "news").
+
+    Returns:
+        Список словарей с данными новостей, содержащих:
+            - title: Заголовок (первая строка текста, до 200 символов)
+            - url: URL новости (None для Telegram-сообщений)
+            - summary: Краткое содержание (до 1500 символов)
+            - source: Название источника
+            - published_at: Дата и время публикации с UTC timezone
+            - raw_text: Полный текст сообщения (до 4000 символов)
+            - content_type: Тип контента
+
+    Note:
+        - Обрабатывает только последние 30 сообщений из канала
+        - Пропускает сообщения без текста или с текстом короче 80 символов
+        - Нормализует текст перед обработкой
+    """
     items: list[dict] = []
 
     async for msg in client.iter_messages(channel, limit=30):
