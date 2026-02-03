@@ -8,8 +8,6 @@ AI Telegram News Generator — это сервис для автоматизац
 
 Проект реализован в рамках учебного задания Project M4-2.
 
----
-
 ## Функциональные возможности
 
 - Сбор новостей с сайтов (RSS)
@@ -23,8 +21,6 @@ AI Telegram News Generator — это сервис для автоматизац
 - История новостей и постов
 - Ручная генерация постов через API
 
----
-
 ## Используемые технологии
 
 - Python 3.13
@@ -36,10 +32,8 @@ AI Telegram News Generator — это сервис для автоматизац
 - Ollama (LLM)
 - PostgreSQL / SQLite
 
----
-
 ## Структура проекта
-
+```
 Parsingbot/
 ├── app/
 │   ├── main.py
@@ -57,8 +51,8 @@ Parsingbot/
 ├── requirements.txt
 ├── README.md
 └── .env.example
+```
 
----
 
 ## Модели данных
 
@@ -95,7 +89,7 @@ Keyword:
 ---
 
 ## Переменные окружения
-
+```
 DATABASE_URL
 REDIS_URL
 CELERY_BROKER_URL
@@ -108,8 +102,8 @@ TG_SESSION_NAME
 TG_SOURCE_CHANNEL
 TG_TARGET_CHANNEL
 RSS_FEED_URL
+```
 
----
 
 ## Запуск проекта
 
